@@ -438,6 +438,44 @@ class DbfDateTimeFieldDef(DbfFieldDef):
         assert len(_rv) == self.length
         return _rv
 
+class DbfDateTimeFieldWDef(DbfFieldDef):
+    """Definition of the timestamp field."""
+    #***JDD***Added support for W def, same as T
+    # a difference between JDN (Julian Day Number)
+    # and GDN (Gregorian Day Number). note, that GDN < JDN
+    JDN_GDN_DIFF = 1721425
+    typeCode = "W"
+    defaultValue = utils.classproperty(lambda cls: datetime.datetime.now())
+    # two 32-bits integers representing JDN and amount of
+    # milliseconds respectively gives us 8 bytes.
+    # note, that values must be encoded in LE byteorder.
+    length = 8
+
+    def decodeValue(self, value):
+        """Return a `datetime.datetime` instance."""
+        assert len(value) == self.length
+        # LE byteorder
+        _jdn, _msecs = struct.unpack("<2I", value)
+        if _jdn >= 1:
+            _rv = datetime.datetime.fromordinal(_jdn - self.JDN_GDN_DIFF)
+            _rv += datetime.timedelta(0, _msecs / 1000.0)
+        else:
+            # empty date
+            _rv = None
+        return _rv
+
+    def encodeValue(self, value):
+        """Return a string-encoded ``value``."""
+        if value:
+            value = utils.getDateTime(value)
+            # LE byteorder
+            _rv = struct.pack("<2I", value.toordinal() + self.JDN_GDN_DIFF,
+                (value.hour * 3600 + value.minute * 60 + value.second) * 1000)
+        else:
+            _rv = "\0" * self.length
+        assert len(_rv) == self.length
+        return _rv
+
 
 _fieldsRegistry = {}
 
